@@ -158,7 +158,7 @@ def perform_inferences(image_path,
     original_image_np = original_image.numpy().astype(np.uint8)
 
     # Process each detected moth
-    for i, detection in enumerate(detections_list, start=0):
+    for i, detection in enumerate(detections_list, start=1):
         bounding_box = detection['bounding_box']
         origin_x, origin_y, width, height = bounding_box['origin_x'], bounding_box['origin_y'], bounding_box['width'], bounding_box['height']
 
@@ -236,10 +236,10 @@ def perform_inferences(image_path,
             },
 
             "classification_assessment": {
-                "classification_confidence": [conf],
+                "classification_confidence": conf,
                 "date_identified": f"{formatted_date}-{hour_difference}00",
                 "identification_verification_status": 0,
-                "software": f"MILA_{[region]}_species_classifier",
+                "software": f"MILA_{region}_species_classifier",
                 "moth_binary_classification_confidence": None
             },
 
@@ -250,14 +250,21 @@ def perform_inferences(image_path,
                 "file_path": None,
                 "file_size_kb": None,
                 "file_extension": None,
-                "identified_by": f"MILA_{[region]}_species_classifier",
+                "identified_by": f"MILA_{region}_species_classifier",
                 "recorded_by": "Automated monitoring of insects (AMI) system"
             }
         }
 
         # Extend metadata to include classification metadata
         metadata["species_classification"] = classification_metadata
-        print(metadata)
+        
+        # Create a json file with the same name as the file
+        # Define the new file name with a JSON extension
+        new_file_name = "metadata/" + metadata["species_classification"]["classification_status"]["occurrence_id"] + ".json"
+
+        # Save metadata
+        with open(new_file_name, 'w') as file:
+            json.dump(metadata, file, indent=4)
 
         ########
 
