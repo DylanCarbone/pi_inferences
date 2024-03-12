@@ -6,6 +6,28 @@ import os
 import datetime
 import json
 import pandas as pd
+from PIL.ExifTags import TAGS
+
+def extract_metadata(image_PIL):
+    """Extract image metadata from title field as json"""
+
+    # Get the EXIF data
+    exif_data = image_PIL._getexif()
+
+    # Convert EXIF tag numbers to human-readable tags
+    labeled_exif = {TAGS[key]: value for key, value in exif_data.items() if key in TAGS}
+
+    # Try to access the title; this might vary depending on how the title is stored
+    title = labeled_exif.get('ImageDescription')  # 'ImageDescription' is a common tag for image titles or descriptions
+
+    try:
+        # Attempt to parse the title as JSON
+        metadata = json.loads(title.strip("'"))
+    except json.JSONDecodeError:
+        # If the title is not valid JSON, return an error message or empty dict
+        metadata = {"error": "metadata is not valid JSON"}
+    
+    return metadata
 
 def preprocess_image(image_path, input_size):
     """Preprocesses the input image for object detection."""
@@ -98,7 +120,6 @@ def species_inference(crop_image, species_interpreter):
 
     return prediction_tf, max(confidence) * 100, str(c.microseconds)
 
-
 def perform_inferences(image_path,
                     moth_model_path,
                     species_model_path,
@@ -128,7 +149,8 @@ def perform_inferences(image_path,
     species_names = json.load(open(species_labels, 'r'))['species_list']
 
     # Load input image
-    image = np.asarray(Image.open(image_path))
+    image_PIL = Image.open(image_path)
+    image = np.asarray(image_PIL)
     annot_image = image.copy()
 
     # Run moth detection
@@ -136,7 +158,7 @@ def perform_inferences(image_path,
     original_image_np = original_image.numpy().astype(np.uint8)
 
     # Process each detected moth
-    for detection in detections_list:
+    for i, detection in enumerate(detections_list, start=0):
         bounding_box = detection['bounding_box']
         origin_x, origin_y, width, height = bounding_box['origin_x'], bounding_box['origin_y'], bounding_box['width'], bounding_box['height']
 
@@ -184,6 +206,61 @@ def perform_inferences(image_path,
             'confidence': [conf],
             'model': [region]
         })
+
+        ########
+        # Get the current date and time
+        current_date = datetime.datetime.now()
+
+        # Get the current UTC time
+        current_utc_time = datetime.datetime.utcnow()
+
+        # Calculate the hour difference
+        hour_difference = str((current_date - current_utc_time).total_seconds() / 3600)[:-2]
+        if len(hour_difference) == 1:
+            hour_difference = "0" + hour_difference
+
+        # format the time
+        formatted_date = current_date.strftime("%Y-%m-%dT%H:%M:%S")
+
+        # Load metadata from raw image
+        metadata = extract_metadata(image_PIL)
+
+        # Append metadata to config.json
+        classification_metadata = {
+            
+            "classification_status": {
+                "identification_id": None,
+                "verbatim_identification": [species_names[species_inf]],
+                "occurrence_id": f"{metadata['motion event data']['IDs']['eventID']}_{i}",
+                "associated_occurrences": None
+            },
+
+            "classification_assessment": {
+                "classification_confidence": [conf],
+                "date_identified": f"{formatted_date}-{hour_difference}00",
+                "identification_verification_status": 0,
+                "software": f"MILA_{[region]}_species_classifier",
+                "moth_binary_classification_confidence": None
+            },
+
+            "other": {
+                "life_stage": None,
+                "pixel_size_x_dimension": xmax - xmin,
+                "pixel_size_y_dimension": ymax - ymin,
+                "file_path": None,
+                "file_size_kb": None,
+                "file_extension": None,
+                "identified_by": f"MILA_{[region]}_species_classifier",
+                "recorded_by": "Automated monitoring of insects (AMI) system"
+            }
+        }
+
+        # Extend metadata to include classification metadata
+        metadata["species_classification"] = classification_metadata
+        print(metadata)
+
+        ########
+
         df['correct'] = np.where(df['pred'] == df['truth'], 1, 0)
         df.to_csv(output_csv_path, index=False, mode='a', header=False)
 
@@ -200,7 +277,7 @@ if __name__ == "__main__":
     species_model_path = f"./models/resnet_{region}.tflite"
     species_labels = f'./models/01_{region}_data_numeric_labels.json'
 
-    image_path = './example_images/ami_ami_20230722000010-00-35.jpg'
+    image_path = 'example_images/image_with_metadata.jpg'
     annotated_image_path = os.path.join('./annotated_images/',os.path.basename(image_path))
     output_csv_path = f'./results/{region}_predictions.csv'
 
