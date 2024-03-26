@@ -230,7 +230,7 @@ def perform_inferences(image_path,
             
             "classification_status": {
                 "identification_id": None,
-                "verbatim_identification": [species_names[species_inf]],
+                "verbatim_identification": species_names[species_inf],
                 "occurrence_id": f"{metadata['motion event data']['IDs']['eventID']}_{i}",
                 "associated_occurrences": None
             },
