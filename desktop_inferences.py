@@ -239,8 +239,9 @@ def perform_inferences(image_path,
                 "classification_confidence": conf,
                 "date_identified": f"{formatted_date}-{hour_difference}00",
                 "identification_verification_status": 0,
-                "software": f"MILA_{region}_species_classifier",
-                "moth_binary_classification_confidence": None
+                "software": f"edge_processing_{region}_species_classifier",
+                "edge_processing": 1,
+                "moth_binary_classification_confidence": None,
             },
 
             "other": {
