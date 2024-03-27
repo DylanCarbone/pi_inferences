@@ -7,6 +7,7 @@ import datetime
 import json
 import pandas as pd
 from PIL.ExifTags import TAGS
+import pyexiv2
 
 def extract_metadata(image_PIL):
     """Extract image metadata from title field as json"""
@@ -28,6 +29,26 @@ def extract_metadata(image_PIL):
         metadata = {"error": "metadata is not valid JSON"}
     
     return metadata
+
+def insert_json(image_path, json_data):
+
+    # Open the image
+    with pyexiv2.Image(image_path) as img:
+        # Convert the JSON data to a string and enclose in single quotes
+        json_string = "'" + json.dumps(json_data) + "'"
+        
+        # Insert the JSON string into the ImageDescription EXIF tag
+        img.modify_exif({'Exif.Image.ImageDescription': json_string})
+        
+        # Save the changes
+        img.save()
+
+# Example JSON data
+json_data = {"field_1": "a", "field_2": "b"}
+
+# Insert the JSON data into the image description
+insert_json('20230124050000-snapshot.jpg', json_data)
+
 
 def preprocess_image(image_path, input_size):
     """Preprocesses the input image for object detection."""
@@ -237,6 +258,7 @@ def perform_inferences(image_path,
 
             "classification_assessment": {
                 "classification_confidence": conf,
+                "classification_bounds": '; '.join(map(str, [xmin, ymin, xmax, ymax])),
                 "date_identified": f"{formatted_date}-{hour_difference}00",
                 "identification_verification_status": 0,
                 "software": f"edge_processing_{region}_species_classifier",
@@ -256,16 +278,21 @@ def perform_inferences(image_path,
             }
         }
 
-        # Extend metadata to include classification metadata
-        metadata["species_classification"] = classification_metadata
-        
-        # Create a json file with the same name as the file
-        # Define the new file name with a JSON extension
-        new_file_name = "metadata/" + metadata["species_classification"]["classification_status"]["occurrence_id"] + ".json"
+        classification_field_name = "species_classification_classification_" + str(i)
 
-        # Save metadata
-        with open(new_file_name, 'w') as file:
-            json.dump(metadata, file, indent=4)
+        # Extend metadata to include classification metadata
+        metadata[classification_field_name] = classification_metadata
+        
+        # Insert metadata into file contents
+        insert_json(image_path, metadata)
+
+        # # Create a json file with the same name as the file
+        # # Define the new file name with a JSON extension
+        # json_file_name = "metadata/" + metadata["species_classification"]["classification_status"]["occurrence_id"] + ".json"
+
+        # # Save metadata
+        # with open(json_file_name, 'w') as file:
+        #     json.dump(metadata, file, indent=4)
 
         ########
 
