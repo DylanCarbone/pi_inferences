@@ -180,128 +180,129 @@ def perform_inferences(image_path,
 
     # Process each detected moth
     for i, detection in enumerate(detections_list, start=1):
-        bounding_box = detection['bounding_box']
-        origin_x, origin_y, width, height = bounding_box['origin_x'], bounding_box['origin_y'], bounding_box['width'], bounding_box['height']
 
-        # convert these to pixels
-        xmin = int(origin_x * original_image_np.shape[1])
-        xmax = int((origin_x + width) * original_image_np.shape[1])
-        ymin = int(origin_y * original_image_np.shape[0])
-        ymax = int((origin_y + height) * original_image_np.shape[0])
+        if(category_name == "moth"):
 
-        # Slice the image using integer indices
-        cropped_image = image[ymin:ymax, xmin:xmax]
-        category_name = detection['categories'][0]['category_name']
-        insect_score = detection['categories'][0]['score']
-        resized_image = Image.fromarray(cropped_image).convert("RGB").resize((300, 300))
-        img = np.array(resized_image) / 255.0
-        img = (img - 0.5) / 0.5
+            bounding_box = detection['bounding_box']
+            origin_x, origin_y, width, height = bounding_box['origin_x'], bounding_box['origin_y'], bounding_box['width'], bounding_box['height']
 
-        # Perform species classification
-        species_inf, conf, inf_time = species_inference(crop_image=img, species_interpreter=species_interpreter)
+            # convert these to pixels
+            xmin = int(origin_x * original_image_np.shape[1])
+            xmax = int((origin_x + width) * original_image_np.shape[1])
+            ymin = int(origin_y * original_image_np.shape[0])
+            ymax = int((origin_y + height) * original_image_np.shape[0])
 
-        # Add bounding box annotation to the image
-        bbox_color = (46, 139, 87) if category_name == 'moth' else (238, 75, 43)
-        ann_label = f"{species_names[species_inf]}, {conf:.2f}"
-        cv2.rectangle(annot_image,
-                        (xmin, ymin),
-                        (xmax, ymax),
-                        bbox_color, 4)
-        cv2.putText(annot_image, text=ann_label,
-                    org=(xmin, ymin),
-                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                    fontScale=1.2, color=bbox_color, thickness=4)
+            # Slice the image using integer indices
+            cropped_image = image[ymin:ymax, xmin:xmax]
+            category_name = detection['categories'][0]['category_name']
+            insect_score = detection['categories'][0]['score']
+            resized_image = Image.fromarray(cropped_image).convert("RGB").resize((300, 300))
+            img = np.array(resized_image) / 255.0
+            img = (img - 0.5) / 0.5
 
-        # Save inference results to csv
-        df = pd.DataFrame({
-            'image_path': [image_path],
-            'timestamp': [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-            'moth_class': [category_name],
-            'insect_score': [insect_score],
-            'detection_time': [det_time],
-            'bounding_box': ['; '.join(map(str, [xmin, ymin, xmax, ymax]))],
-            'annot_path': [annotated_image_path],
-            'species_inference_time': [inf_time],
-            'truth': [' '.join(image_path.split('/')[-1].split('_')[0:2])],
-            'pred': [species_names[species_inf]],
-            'confidence': [conf],
-            'model': [region]
-        })
+            # Perform species classification
+            species_inf, conf, inf_time = species_inference(crop_image=img, species_interpreter=species_interpreter)
 
-        ########
-        # Get the current date and time
-        current_date = datetime.datetime.now()
+            # Add bounding box annotation to the image
+            bbox_color = (46, 139, 87) if category_name == 'moth' else (238, 75, 43)
+            ann_label = f"{species_names[species_inf]}, {conf:.2f}"
+            cv2.rectangle(annot_image,
+                            (xmin, ymin),
+                            (xmax, ymax),
+                            bbox_color, 4)
+            cv2.putText(annot_image, text=ann_label,
+                        org=(xmin, ymin),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale=1.2, color=bbox_color, thickness=4)
 
-        # Get the current UTC time
-        current_utc_time = datetime.datetime.utcnow()
+            # Save inference results to csv
+            df = pd.DataFrame({
+                'image_path': [image_path],
+                'timestamp': [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                'moth_class': [category_name],
+                'insect_score': [insect_score],
+                'detection_time': [det_time],
+                'bounding_box': ['; '.join(map(str, [xmin, ymin, xmax, ymax]))],
+                'annot_path': [annotated_image_path],
+                'species_inference_time': [inf_time],
+                'truth': [' '.join(image_path.split('/')[-1].split('_')[0:2])],
+                'pred': [species_names[species_inf]],
+                'confidence': [conf],
+                'model': [region]
+            })
 
-        # Calculate the hour difference
-        hour_difference = str((current_date - current_utc_time).total_seconds() / 3600)[:-2]
-        if len(hour_difference) == 1:
-            hour_difference = "0" + hour_difference
+            ########
+            # Get the current date and time
+            current_date = datetime.datetime.now()
 
-        # format the time
-        formatted_date = current_date.strftime("%Y-%m-%dT%H:%M:%S")
+            # Get the current UTC time
+            current_utc_time = datetime.datetime.utcnow()
 
-        # Load metadata from raw image
-        metadata = extract_metadata(image_PIL)
+            # Calculate the hour difference
+            hour_difference = str((current_date - current_utc_time).total_seconds() / 3600)[:-2]
+            if len(hour_difference) == 1:
+                hour_difference = "0" + hour_difference
 
-        # Append metadata to config.json
-        classification_metadata = {
+            # format the time
+            formatted_date = current_date.strftime("%Y-%m-%dT%H:%M:%S")
+
+            # Load metadata from raw image
+            metadata = extract_metadata(image_PIL)
             
-            "classification_status": {
-                "identification_id": None,
-                "verbatim_identification": species_names[species_inf],
-                "occurrence_id": f"{metadata['motion event data']['IDs']['eventID']}_{i}",
-                "associated_occurrences": None
-            },
+            # Append metadata to config.json
+            classification_metadata = {
+                
+                "classification_status": {
+                    "identification_id": None,
+                    "verbatim_identification": species_names[species_inf],
+                    "occurrence_id": f"{metadata['motion event data']['IDs']['eventID']}_{i}",
+                    "associated_occurrences": None
+                },
 
-            "classification_assessment": {
-                "classification_confidence": conf,
-                "classification_bounds": '; '.join(map(str, [xmin, ymin, xmax, ymax])),
-                "date_identified": f"{formatted_date}-{hour_difference}00",
-                "identification_verification_status": 0,
-                "software": f"edge_processing_{region}_species_classifier",
-                "edge_processing": 1,
-                "moth_binary_classification_confidence": None,
-            },
+                "classification_assessment": {
+                    "object_detection_confidence": conf,
+                    "object_detection_bounds": '; '.join(map(str, [xmin, ymin, xmax, ymax])),
+                    "date_identified": f"{formatted_date}-{hour_difference}00",
+                    "identification_verification_status": 0,
+                    "software": f"edge_processing_{region}_species_classifier",
+                    "edge_processing": 1
+                },
 
-            "other": {
-                "life_stage": None,
-                "pixel_size_x_dimension": xmax - xmin,
-                "pixel_size_y_dimension": ymax - ymin,
-                "file_path": None,
-                "file_size_kb": None,
-                "file_extension": None,
-                "identified_by": f"MILA_{region}_species_classifier",
-                "recorded_by": "Automated monitoring of insects (AMI) system"
+                "other": {
+                    "life_stage": None,
+                    "pixel_size_x_dimension": xmax - xmin,
+                    "pixel_size_y_dimension": ymax - ymin,
+                    "file_path": None,
+                    "file_size_kb": None,
+                    "file_extension": None,
+                    "identified_by": f"MILA_{region}_species_classifier",
+                    "recorded_by": "Automated monitoring of insects (AMI) system"
+                }
             }
-        }
 
-        classification_field_name = "species_classification_classification_" + str(i)
+            classification_field_name = "species_classification_classification_" + str(i)
 
-        # Extend metadata to include classification metadata
-        metadata[classification_field_name] = classification_metadata
-        
-        # Insert metadata into file contents
-        insert_json(image_path, metadata)
+            # Extend metadata to include classification metadata
+            metadata[classification_field_name] = classification_metadata
+            
+            # Insert metadata into file contents
+            insert_json(image_path, metadata)
 
-        # # Create a json file with the same name as the file
-        # # Define the new file name with a JSON extension
-        # json_file_name = "metadata/" + metadata["species_classification"]["classification_status"]["occurrence_id"] + ".json"
+            # # Create a json file with the same name as the file
+            # # Define the new file name with a JSON extension
+            # json_file_name = "metadata/" + metadata["species_classification"]["classification_status"]["occurrence_id"] + ".json"
 
-        # # Save metadata
-        # with open(json_file_name, 'w') as file:
-        #     json.dump(metadata, file, indent=4)
+            # # Save metadata
+            # with open(json_file_name, 'w') as file:
+            #     json.dump(metadata, file, indent=4)
 
-        ########
+            ########
 
-        df['correct'] = np.where(df['pred'] == df['truth'], 1, 0)
-        df.to_csv(output_csv_path, index=False, mode='a', header=False)
+            df['correct'] = np.where(df['pred'] == df['truth'], 1, 0)
+            df.to_csv(output_csv_path, index=False, mode='a', header=False)
 
     print('Saved annotated image to: ', annotated_image_path)
     cv2.imwrite(annotated_image_path, cv2.cvtColor(annot_image, cv2.COLOR_BGR2RGB))
-
 
 if __name__ == "__main__":
     moth_model_path = './models/gbif_model_metadata.tflite'
